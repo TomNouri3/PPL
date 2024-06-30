@@ -1,4 +1,4 @@
-import { PrimOp } from "./L5-ast"; //
+import { PrimOp } from "./L5-ast";
 import { Value, isSymbolSExp, isCompoundSExp, makeCompoundSExp, makeEmptySExp, isEmptySExp, CompoundSExp, EmptySExp } from "./L5-value";
 import { Result, makeFailure, makeOk } from "../shared/result";
 import { allT, first, isNonEmptyList, rest } from "../shared/list";
