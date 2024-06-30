@@ -5,6 +5,7 @@ import * as A from "./L5-ast";
 import * as TC from "./L5-typecheck";
 import * as E from "./TEnv";
 import * as T from "./TExp";
+import { isAnyTExp, isNeverTExp, makeAnyTExp, makeNeverTExp } from './TExp'; // Added
 import { allT, first, rest, isEmpty, isNonEmptyList } from "../shared/list";
 import { Result, makeFailure, makeOk, bind, zipWithResult, mapResult, mapv } from "../shared/result";
 import { parse as p } from "../shared/parser";
