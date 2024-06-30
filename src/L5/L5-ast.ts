@@ -299,12 +299,50 @@ const parseIfExp = (params: Sexp[]): Result<IfExp> =>
     mapv(mapResult(parseL5CExp, params), (cexps: CExp[]) => 
         makeIfExp(cexps[0], cexps[1], cexps[2]));
 
+/* 
+Example:
+(lambda (x : number) : number (+ x 1))
+
+Initial S-expression:
+const vars: Sexp = [["x", ":", "number"]];
+const rest: Sexp[] = [":", "number", ["+", "x", 1]];
+
+vars is an array, so the function proceeds.
+
+const args = mapResult(parseVarDecl, [["x", ":", "number"]]);
+args = makeOk([{ tag: "VarDecl", var: "x", texp: { tag: "NumTExp" } }])
+
+const body = mapResult(parseL5CExp, [["+", "x", 1]]); 
+body = 
+makeOk([{
+  tag: "AppExp",
+  rator: { tag: "PrimOp", op: "+" },
+  rands: [{ tag: "VarRef", var: "x" }, { tag: "NumExp", val: 1 }]
+}])
+
+const returnTE = parseTExp("number");
+return TE = makeOk({ tag: "NumTExp" })
+
+makeOk({
+  tag: "ProcExp",
+  args: [{ tag: "VarDecl", var: "x", texp: { tag: "NumTExp" } }],
+  body: [{
+    tag: "AppExp",
+    rator: { tag: "PrimOp", op: "+" },
+    rands: [{ tag: "VarRef", var: "x" }, { tag: "NumExp", val: 1 }]
+  }],
+  returnTE: { tag: "NumTExp" }
+})
+
+*/
+
 // (lambda (<vardecl>*) [: returnTE]? <CExp>+)
 const parseProcExp = (vars: Sexp, rest: Sexp[]): Result<ProcExp> => {
     if (isArray(vars)) {
-        const args = mapResult(parseVarDecl, vars);
-        const body = mapResult(parseL5CExp, rest[0] === ":" ? rest.slice(2) : rest);
-        const returnTE = rest[0] === ":" ? parseTExp(rest[1]) : makeOk(makeFreshTVar());
+        const args = mapResult(parseVarDecl, vars); // mapResult(parseVarDecl, vars) applies the parseVarDecl function to each element in vars. This results in a Result containing either a list of VarDecl objects (if successful) or a failure.
+        const body = mapResult(parseL5CExp, rest[0] === ":" ? rest.slice(2) : rest); // The function checks if the first element in rest is ":". If it is, it skips the first two elements (the colon and the return type) and parses the rest as the body. If it is not, it parses the entire rest as the body. mapResult(parseL5CExp, rest) applies parseL5CExp to each element in rest to parse them into CExp objects.
+        const returnTE = rest[0] === ":" ? parseTExp(rest[1]) : makeOk(makeFreshTVar()); // If the first element in rest is ":", it parses the second element as the return type using parseTExp. If there is no ":", it generates a fresh type variable using makeFreshTVar.
+        // Construct ProcExp
         return bind(args, (args: VarDecl[]) =>
                     bind(body, (body: CExp[]) =>
                         mapv(returnTE, (returnTE: TExp) =>
@@ -337,6 +375,27 @@ const isConcreteVarDecl = (sexp: Sexp): boolean =>
     isIdentifier(sexp) ||
     (isArray(sexp) && sexp.length > 2 && isIdentifier(sexp[0]) && (sexp[1] === ':'));
 
+    
+/*
+The parseVarDecl function is responsible for parsing a variable declaration (VarDecl) in the L5 language. 
+It handles both simple variable declarations and variable declarations with type annotations.
+If sexp is a simple string, it represents a variable name without a type annotation.
+makeVarDecl(sexp, makeFreshTVar()) creates a VarDecl with the variable name and a fresh type variable.
+If sexp is an array, it represents a variable declaration with a type annotation.
+const v = sexp[0]; extracts the variable name.
+If v is a string, it proceeds to parse the type expression.
+parseTExp(sexp[2]) parses the type expression at the third position in the array.
+mapv applies the function (te: TExp) => makeVarDecl(v, te) to the parsed type expression, creating a VarDecl.
+
+Example 1: Simple Variable Declaration
+const sexp1: Sexp = "x";
+const result1 = parseVarDecl(sexp1);
+makeOk({ tag: "VarDecl", var: "x", texp: { tag: "TVar", var: "T1" } });
+Example 2: Variable Declaration with Type Annotation
+const sexp2: Sexp = ["x", ":", "number"];
+const result2 = parseVarDecl(sexp2);
+makeOk({ tag: "VarDecl", var: "x", texp: { tag: "NumTExp" } });
+*/
 export const parseVarDecl = (sexp: Sexp): Result<VarDecl> => {
     if (isString(sexp)) {
         return makeOk(makeVarDecl(sexp, makeFreshTVar()));
