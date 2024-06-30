@@ -185,6 +185,14 @@ export const parseL5Program = (sexp: Sexp): Result<Program> =>
     isNonEmptyList<Sexp>(sexp) ? parseL5GoodProgram(first(sexp), rest(sexp)) :
     makeFailure("Unexpected empty program");
 
+// mapResult is a function that applies a given function (parseL5Exp) to each element in a list (body), 
+// and it returns a Result that is either Ok with a list of results or Failure if any application fails.
+// mapResult(parseL5Exp, body) applies parseL5Exp to each element of body and collects the results.
+// mapv is a function that maps a function over a Result containing a list. If the Result is Ok, 
+// it applies the function to the list inside the Ok. If the Result is Failure, it propagates the failure.
+// The function being mapped over is (exps: Exp[]) => makeProgram(exps).
+// This function takes a list of Exp (exps) and creates a Program using makeProgram(exps).
+// export const makeProgram = (exps: Exp[]): Program => ({tag: "Program", exps: exps});
 const parseL5GoodProgram = (keyword: Sexp, body: Sexp[]): Result<Program> =>
     keyword === "L5" && !isEmpty(body) ? mapv(mapResult(parseL5Exp, body), (exps: Exp[]) => makeProgram(exps)) :
     makeFailure(`Program must be of the form (L5 <exp>+): ${format([keyword, ...body])}`);
@@ -198,6 +206,7 @@ export const parseL5CompoundExp = (op: Sexp, params: Sexp[]): Result<Exp> =>
     op === "define" ? parseDefine(params) :
     parseL5CompoundCExp(op, params);
 
+// const isSpecialFormKeyword = (x: string): x is SpecialFormKeyword => ["if", "lambda", "let", "quote", "letrec", "set!"].includes(x);
 export const parseL5CompoundCExp = (op: Sexp, params: Sexp[]): Result<CExp> =>
     isString(op) && isSpecialFormKeyword(op) ? parseL5SpecialForm(op, params) :
     parseAppExp(op, params);
@@ -220,6 +229,45 @@ export const parseDefine = (params: Sexp[]): Result<DefineExp> =>
         parseGoodDefine(first(params), second(params)) :
     makeFailure("define missing 2 arguments");
 
+
+/*
+example
+(define (f : (number -> number)) (lambda (x : number) (+ x 1)))
+Initial S-expression: const sexp: Sexp = ["define", ["f", ":", ["number", "->", "number"]], ["lambda", [["x", ":", "number"]], ["+", "x", 1]]];
+variable = ["f", ":", ["number", "->", "number"]]
+val = ["lambda", [["x", ":", "number"]], ["+", "x", 1]]
+parseVarDecl(variable) parses ["f", ":", ["number", "->", "number"]] into:
+makeOk({ tag: "VarDecl", var: "f", texp: makeFuncTExp([makeNumTExp()], makeNumTExp()) })
+varDecl is now { tag: "VarDecl", var: "f", texp: { tag: "ProcTExp", paramTEs: [{ tag: "NumTExp" }], returnTE: { tag: "NumTExp" } } }.
+parseL5CExp(val) parses ["lambda", [["x", ":", "number"]], ["+", "x", 1]] into:
+
+makeOk({
+  tag: "ProcExp",
+  args: [{ tag: "VarDecl", var: "x", texp: { tag: "NumTExp" } }],
+  body: [{
+    tag: "AppExp",
+    rator: { tag: "PrimOp", op: "+" },
+    rands: [{ tag: "VarRef", var: "x" }, { tag: "NumExp", val: 1 }]
+  }],
+  returnTE: { tag: "NumTExp" }
+})
+
+makeDefineExp(varDecl, val)
+
+makeDefineExp(
+  { tag: "VarDecl", var: "f", texp: { tag: "ProcTExp", paramTEs: [{ tag: "NumTExp" }], returnTE: { tag: "NumTExp" } } },
+  {
+    tag: "ProcExp",
+    args: [{ tag: "VarDecl", var: "x", texp: { tag: "NumTExp" } }],
+    body: [{
+      tag: "AppExp",
+      rator: { tag: "PrimOp", op: "+" },
+      rands: [{ tag: "VarRef", var: "x" }, { tag: "NumExp", val: 1 }]
+    }],
+    returnTE: { tag: "NumTExp" }
+  }
+)
+*/
 const parseGoodDefine = (variable: Sexp, val: Sexp): Result<DefineExp> =>
     ! isConcreteVarDecl(variable) ? makeFailure(`First arg of define must be an identifier: ${format(variable)}`) :
     bind(parseVarDecl(variable), (varDecl: VarDecl) =>
@@ -239,6 +287,8 @@ export const parseL5CExp = (sexp: Sexp): Result<CExp> =>
     isToken(sexp) ? parseL5Atomic(sexp) :
     makeFailure("CExp cannot be an empty list");
 
+// parsing an application expression in the L5 language. 
+// An application expression applies a function to a list of arguments.
 const parseAppExp = (op: Sexp, params: Sexp[]): Result<AppExp> =>
     bind(parseL5CExp(op), (rator: CExp) =>
         mapv(mapResult(parseL5CExp, params), (rands: CExp[]) =>
@@ -274,6 +324,15 @@ const parseLetExp = (bindings: Sexp, body: Sexp[]): Result<LetExp> =>
         mapv(mapResult(parseL5CExp, body), (body: CExp[]) =>
             makeLetExp(bdgs, body)));
 
+// The isConcreteVarDecl function is a type predicate that checks whether a given S-expression (sexp)
+//  represents a concrete variable declaration in the L5 language.
+// A concrete variable declaration can either be a simple identifier or a more complex form that includes a type annotation.
+// sexp.length > 2: Ensures that the array has more than two elements. 
+// This is important because a valid type-annotated variable declaration should have at least three elements: 
+// the variable name, a colon (:), and the type annotation.
+// Example
+// const sexp2: Sexp = ["x", ":", "number"];
+// const result2 = isConcreteVarDecl(sexp2); // true
 const isConcreteVarDecl = (sexp: Sexp): boolean =>
     isIdentifier(sexp) ||
     (isArray(sexp) && sexp.length > 2 && isIdentifier(sexp[0]) && (sexp[1] === ':'));
@@ -298,6 +357,8 @@ const parseBindings = (bindings: [Sexp, Sexp][]): Result<Binding[]> =>
         mapv(mapResult(parseL5CExp, map(b => b[1], bindings)), (vals: CExp[]) =>
             zipWith(makeBinding, vds, vals)));
 
+// letrec is a special form that allows for the definition of mutually recursive procedures or variables.
+// This is particularly useful for defining functions that reference each other.
 const parseLetrecExp = (bindings: Sexp, body: Sexp[]): Result<LetrecExp> =>
     isEmpty(body) ? makeFailure('Body of "letrec" cannot be empty') :
     ! isGoodBindings(bindings) ? makeFailure(`Invalid bindings: ${format(bindings)}`) :
