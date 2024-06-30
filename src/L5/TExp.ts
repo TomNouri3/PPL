@@ -1,7 +1,7 @@
 /*
 ;; Type language
 ;; <texp>         ::= <atomic-te> | <compound-te> | <tvar>
-;; <atomic-te>    ::= <num-te> | <bool-te> | <void-te>
+;; <atomic-te>    ::= <num-te> | <bool-te> | <void-te> | <str-te>
 ;; <num-te>       ::= number   // num-te()
 ;; <bool-te>      ::= boolean  // bool-te()
 ;; <str-te>       ::= string   // str-te()
@@ -45,9 +45,9 @@ import { format } from "../shared/format";
 export type TExp =  AtomicTExp | CompoundTExp | TVar;
 export const isTExp = (x: any): x is TExp => isAtomicTExp(x) || isCompoundTExp(x) || isTVar(x);
 
-export type AtomicTExp = NumTExp | BoolTExp | StrTExp | VoidTExp;
+export type AtomicTExp = NumTExp | BoolTExp | StrTExp | VoidTExp| AnyTExp | NeverTExp; // Added
 export const isAtomicTExp = (x: any): x is AtomicTExp =>
-    isNumTExp(x) || isBoolTExp(x) || isStrTExp(x) || isVoidTExp(x);
+    isNumTExp(x) || isBoolTExp(x) || isStrTExp(x) || isVoidTExp(x) || isAnyTExp(x) || isNeverTExp(x); // Added
 
 export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp;
 export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x);
@@ -55,6 +55,16 @@ export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || is
 export type NonTupleTExp = AtomicTExp | ProcTExp | TVar | UnionTExp;
 export const isNonTupleTExp = (x: any): x is NonTupleTExp =>
     isAtomicTExp(x) || isProcTExp(x) || isTVar(x) || isUnionTExp(x);
+
+// Added
+export type AnyTExp = { tag: "AnyTExp" };
+export const makeAnyTExp = (): AnyTExp => ({tag: "AnyTExp"});
+export const isAnyTExp = (x: any): x is AnyTExp => x.tag === "AnyTExp";
+
+// Added
+export type NeverTExp = { tag: "NeverTExp" };
+export const makeNeverTExp = (): NeverTExp => ({tag: "NeverTExp"});
+export const isNeverTExp = (x: any): x is NeverTExp => x.tag === "NeverTExp";
 
 export type NumTExp = { tag: "NumTExp" };
 export const makeNumTExp = (): NumTExp => ({tag: "NumTExp"});
@@ -303,6 +313,8 @@ export const parseTExp = (texp: Sexp): Result<TExp> =>
     (texp === "boolean") ? makeOk(makeBoolTExp()) :
     (texp === "void") ? makeOk(makeVoidTExp()) :
     (texp === "string") ? makeOk(makeStrTExp()) :
+    (texp === "any") ? makeOk(makeAnyTExp()) : // Added
+    (texp === "never") ? makeOk(makeNeverTExp()) : // Added
     isString(texp) ? makeOk(makeTVar(texp)) :
     isArray(texp) ? parseCompoundTExp(texp) :
     makeFailure(`Unexpected TExp - ${format(texp)}`);
@@ -369,6 +381,8 @@ export const unparseTExp = (te: TExp): Result<string> => {
         isBoolTExp(x) ? makeOk('boolean') :
         isStrTExp(x) ? makeOk('string') :
         isVoidTExp(x) ? makeOk('void') :
+        isAnyTExp(x) ? makeOk('any') : // Added
+        isNeverTExp(x) ? makeOk('never') : // Added
         isEmptyTVar(x) ? makeOk(x.var) :
         isTVar(x) ? up(tvarContents(x)) :
         isUnionTExp(x) ? mapv(mapResult(unparseTExp, x.components), (componentTEs: string[]) => 
