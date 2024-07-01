@@ -28,6 +28,24 @@ const checkEqualType = (te1: T.TExp | undefined, te2: T.TExp, exp: A.Exp): Resul
     bind(T.unparseTExp(te1), (te1: string) =>
         bind(T.unparseTExp(te2), (te2: string) =>
             makeFailure<true>(`Incompatible types structure: ${te1} - ${te2}`)));
+/*
+Added:
+If te1 is undefined, it means we encountered an unbound type variable. The function then returns an error indicating incompatible types.
+If both te1 and te2 are type variables (TVar), it checks if they are the same type variable. If they are the same (T.eqTVar(te1, te2)), it returns true indicating they are equal. If not, it proceeds to check if they can be unified using checkTVarEqualTypes
+If only te1 is a type variable, it checks if te1 can be unified with te2 using checkTVarEqualTypes.
+If only te2 is a type variable, it checks if te2 can be unified with te1 using checkTVarEqualTypes.
+
+Example
+const te1 = T.makeProcTExp([T.makeNumTExp()], T.makeBoolTExp()); // (number -> boolean)
+const te2 = T.makeProcTExp([T.makeNumTExp()], T.makeBoolTExp()); // (number -> boolean)
+const exp = ...; // some AST expression
+
+const result = checkEqualType(te1, te2, exp);
+te1 and te2 are both procedure type expressions with the same parameter and return types.
+The function will check if te1 and te2 are equal using checkProcEqualTypes. Since they are the same, it returns true.
+*/
+
+
 
 // Purpose: make two lists of equal length of type expressions equal
 // Return an error if one of the pair of TExps are not compatible - true otherwise.
@@ -36,12 +54,43 @@ const checkEqualTypes = (tes1: T.TExp[], tes2: T.TExp[], exp: A.Exp): Result<tru
     const checks = zipWithResult((te1, te2) => checkEqualType(te1, te2, exp), tes1, tes2);
     return bind(checks, _ => makeOk(true));
 }
+/*
+Added
+The checkEqualTypes function aims to ensure that two lists of type expressions (tes1 and tes2) are of equal length and that each corresponding pair of type expressions from the two lists are equivalent. It returns an error if any pair of type expressions is not compatible, otherwise it returns true
+The function uses zipWithResult to pairwise compare elements from tes1 and tes2 using the checkEqualType function.
+checkEqualType(te1, te2, exp) checks if the types te1 and te2 are equivalent. If they are not, it returns an error.
+
+Example 
+const tes1 = [
+    T.makeNumTExp(),                   // number
+    T.makeBoolTExp(),                  // boolean
+    T.makeProcTExp([T.makeStrTExp()], T.makeNumTExp()) // (string -> number)
+];
+const tes2 = [
+    T.makeNumTExp(),                   // number
+    T.makeBoolTExp(),                  // boolean
+    T.makeProcTExp([T.makeStrTExp()], T.makeNumTExp()) // (string -> number)
+];
+const exp = A.makeAppExp(A.makeVarRef("someFunc"), [
+    A.makeNumExp(5),
+    A.makeBoolExp(true),
+    A.makeStrExp("example")
+]);
+const result = checkEqualTypes(tes1, tes2, exp);
+zipWithResult pairs each element in tes1 with the corresponding element in tes2 and applies checkEqualType to each pair.
+First Pair: T.makeNumTExp() vs. T.makeNumTExp()
+Second Pair: T.makeBoolTExp() vs. T.makeBoolTExp()
+Third Pair: T.makeProcTExp([T.makeStrTExp()], T.makeNumTExp()) vs. T.makeProcTExp([T.makeStrTExp()], T.makeNumTExp())
+Since all type expressions in tes1 and tes2 are equivalent, checkEqualTypes returns makeOk(true).
+*/
 
 const checkProcEqualTypes = (te1: T.ProcTExp, te2: T.ProcTExp, exp: A.Exp): Result<true> =>
     te1.paramTEs.length !== te2.paramTEs.length ? bind(T.unparseTExp(te1), (te1: string) =>
                                                     bind(T.unparseTExp(te2), (te2: string) =>
                                                         makeFailure<true>(`Wrong number of args ${te1} - ${te2}`))) :
     checkEqualTypes(T.procTExpComponents(te1), T.procTExpComponents(te2), exp);
+// If the lengths of the parameter type lists are the same,
+// the function proceeds to check if the parameter types and return types are equivalent.
 
 // Purpose: check that a type variable matches a type expression
 // Updates the var is needed to refer to te.
@@ -49,6 +98,11 @@ const checkProcEqualTypes = (te1: T.ProcTExp, te2: T.ProcTExp, exp: A.Exp): Resu
 const checkTVarEqualTypes = (tvar: T.TVar, te: T.TExp, exp: A.Exp): Result<true> =>
     T.tvarIsNonEmpty(tvar) ? checkEqualType(T.tvarContents(tvar), te, exp) :
     mapv(checkNoOccurrence(tvar, te, exp), _ => { T.tvarSetContents(tvar, te); return true; });
+// The checkTVarEqualTypes function is responsible for ensuring that a type variable (TVar) is consistent with a given type expression (TExp). This function is part of the type unification process in type inference, where the goal is to ensure that different type expressions can be unified into a consistent type.
+// T.tvarIsNonEmpty(tvar) checks if the type variable (tvar) already has a type associated with it
+// If tvar is already bound, it retrieves the current type of tvar using T.tvarContents(tvar) and compares it to te using checkEqualType
+// If tvar is empty (not yet bound to any type), the function proceeds to ensure that binding tvar to te will not create a circular reference.
+// If checkNoOccurrence succeeds, T.tvarSetContents(tvar, te) updates tvar to refer to te.
 
 // Purpose: when attempting to bind tvar to te - check whether tvar occurs in te.
 // Throws error if a circular reference is found.
@@ -107,6 +161,8 @@ const typeofExps = (exps: A.Exp[], tenv: E.TEnv): Result<T.TExp> =>
         isEmpty(rest(exps)) ? typeofExp(first(exps), tenv) :
         bind(typeofExp(first(exps), tenv), _ => typeofExps(rest(exps), tenv)) :
     makeFailure(`Unexpected empty sequence of exps`);
+// It ensures that all expressions in the sequence are type-checked, 
+// and it returns the type of the last expression in the sequence.
 
 // Purpose: compute the type of an if-exp
 // Typing rule:

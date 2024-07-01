@@ -1,5 +1,5 @@
 // ===========================================================
-// AST type models for L5 // itays
+// AST type models for L5
 // L5 extends L4 with:
 // optional type annotations
 

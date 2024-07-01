@@ -14,6 +14,14 @@ import { Result, makeFailure, bind, makeOk, zipWithResult, either } from '../sha
 import { parse as p } from "../shared/parser";
 import { format } from '../shared/format';
 
+/*
+Added:
+The L5-typecheck module in the L5 language type checks the Abstract Syntax Tree (AST) of a program to ensure that 
+it adheres to the type rules defined for the language. 
+This module is responsible for inferring and verifying types, ensuring that operations are used with the correct types, 
+and that expressions evaluate to the expected types.
+*/
+
 // Purpose: Check that type expressions are compatible
 // as part of a fully-annotated type check process of exp.
 // Return an error if te1 is not compatible with te2 - true otherwise.
