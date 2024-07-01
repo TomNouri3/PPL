@@ -13,13 +13,14 @@
 ;; <non-empty-tuple-te> ::= ( <non-tuple-te> *)* <non-tuple-te> // tuple-te(tes: list(te))
 ;; <empty-te>     ::= Empty
 ;; <union-te>     ::= (union <texp> <texp>) // union-te(components: list(te))
+;; <inter-te>     ::= (inter <texp> <texp>) // inter-te(components: list(te))
 ;; <tvar>         ::= a symbol starting with T // tvar(id: Symbol, contents; Box(string|boolean))
 
 ;; Examples of type expressions
 ;; number
 ;; boolean
 ;; void
-;; [number -> boolean]
+;; [number -> boolean] 
 ;; [number * number -> boolean]
 ;; [number -> [number -> boolean]]
 ;; [Empty -> number]
@@ -49,12 +50,12 @@ export type AtomicTExp = NumTExp | BoolTExp | StrTExp | VoidTExp| AnyTExp | Neve
 export const isAtomicTExp = (x: any): x is AtomicTExp =>
     isNumTExp(x) || isBoolTExp(x) || isStrTExp(x) || isVoidTExp(x) || isAnyTExp(x) || isNeverTExp(x); // Added
 
-export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp;
-export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x);
+export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp | InterTExp | DiffTExp; // Added
+export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x)|| isInterTExp(x) || isDiffTExp(x); // Added
 
 export type NonTupleTExp = AtomicTExp | ProcTExp | TVar | UnionTExp;
 export const isNonTupleTExp = (x: any): x is NonTupleTExp =>
-    isAtomicTExp(x) || isProcTExp(x) || isTVar(x) || isUnionTExp(x);
+    isAtomicTExp(x) || isProcTExp(x) || isTVar(x) || isUnionTExp(x)|| isInterTExp(x) || isDiffTExp(x); // Added
 
 // Added
 export type AnyTExp = { tag: "AnyTExp" };
@@ -134,6 +135,9 @@ const flattenUnion = (tes: TExp[]): TExp[] =>
         isUnionTExp(tes[0]) ? [...tes[0].components, ...flattenUnion(tes.slice(1))] :
         [tes[0], ...flattenUnion(tes.slice(1))] :
     [];
+/*
+The function flattenUnion is designed to take a list of type expressions (TExp[]) and flatten it by breaking down any union type expressions (UnionTExp) into their individual components. It ensures that the result is a flat list of type expressions with no nested union types. Additionally, it removes duplicate types within the list.
+*/
 
 // Comparator for sort function - return -1 if te1 < te2, 0 if equal, +1 if te1 > te2
 // If types not comparable by subType - order by lexicographic of unparsed form.
