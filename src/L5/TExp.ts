@@ -53,7 +53,7 @@ export const isAtomicTExp = (x: any): x is AtomicTExp =>
 export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp | InterTExp | DiffTExp; // Added
 export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x)|| isInterTExp(x) || isDiffTExp(x); // Added
 
-export type NonTupleTExp = AtomicTExp | ProcTExp | TVar | UnionTExp;
+export type NonTupleTExp = AtomicTExp | ProcTExp | TVar | UnionTExp | InterTExp | DiffTExp; // Added
 export const isNonTupleTExp = (x: any): x is NonTupleTExp =>
     isAtomicTExp(x) || isProcTExp(x) || isTVar(x) || isUnionTExp(x)|| isInterTExp(x) || isDiffTExp(x); // Added
 
@@ -106,6 +106,36 @@ export const makeNonEmptyTupleTExp = (tes: NonTupleTExp[]): NonEmptyTupleTExp =>
     ({tag: "NonEmptyTupleTExp", TEs: tes});
 export const isNonEmptyTupleTExp = (x: any): x is NonEmptyTupleTExp => x.tag === "NonEmptyTupleTExp";
 
+// ----------------------------------------------------------------------------------------------------------
+// Added - inter
+export type InterTExp = { tag: "InterTExp"; components: TExp[]};
+export const makeInterTExp = (tes: TExp[]): TExp => 
+    normalizeInter(({tag: "InterTExp", components: flattenSortInter(tes)}));
+export const isInterTExp = (x: any): x is InterTExp => x.tag === "InterTExp";
+
+const flattenSortInter = (tes: TExp[]): TExp[] =>
+    removeDuplicatesAndAny(sort(superTypeComparator, flattenInter(tes)));
+
+const flattenInter = (tes: TExp[]): TExp[] => 
+        (tes.length > 0) ? 
+            isInterTExp(tes[0]) ? [...tes[0].components, ...flattenInter(tes.slice(1))] :
+            [tes[0], ...flattenInter(tes.slice(1))] :
+        [];
+
+const normalizeInter = (ite: InterTExp): TExp =>
+    isEmpty(ite.components) ? makeAnyTExp() :
+    includes(makeNeverTExp(), ite.components) ? makeNeverTExp() :
+    (ite.components.length === 1) ? ite.components[0] :
+    ite;
+
+const removeDuplicatesAndAny = (tes: TExp[]): TExp[] =>
+    isEmpty(tes) ? tes :
+    containsType(tes.slice(1), tes[0]) ? removeDuplicatesAndAny(tes.slice(1)) :
+    isAnyTExp(tes[0]) ? removeDuplicatesAndAny(tes.slice(1)) :
+    [tes[0], ...removeDuplicatesAndAny(tes.slice(1))];
+   
+// ----------------------------------------------------------------------------------------------------------
+// Union
 export type UnionTExp = { tag: "UnionTExp"; components: TExp[]};
 export const makeUnionTExp = (tes: TExp[]): TExp =>
     normalizeUnion(({tag: "UnionTExp", components: flattenSortUnion(tes)}));
@@ -180,6 +210,20 @@ const superTypeComparator = (te1: TExp, te2: TExp): number =>
     isSubType(te2, te1) ? -1 :
     texpLexicoComparator(te1, te2);
 
+// it is beneficial to convert an intersection of types into a union of intersections
+// it is easier to check for subtypes and equivalence
+/*
+Inter(a, Union(b, c), Union(d, e, f)) 
+=> Union(
+     Inter(a, b, d),
+     Inter(a, b, e),
+     Inter(a, b, f),
+     Inter(a, c, d),
+     Inter(a, c, e),
+     Inter(a, c, f)
+   )
+*/
+
 // Disjunctive normal form
 // [a, union(c, d), union(e, f)]
 // a.[(c+d).(e+f)] = [ace + acf + ade + adf]
@@ -190,12 +234,30 @@ export const dnf = (te: TExp): TExp =>
     isInterTExp(te) ? makeDnf(filter(isUnionTExp, te.components), 
                               filter((te) => ! isUnionTExp(te), te.components)) :
     te;
+// transforms a type expression into its Disjunctive Normal Form (DNF).
+// Disjunctive Normal Form (DNF) is a standard form of a logical expression in which the expression is a disjunction (OR) of conjunctions (AND).
+// In terms of type expressions, it means representing intersections and unions in a standardized way to simplify type checking and other operations.
+// If the type expression te is an intersection type (InterTExp), it needs to be transformed into DNF.
+// If te is not an intersection type, it is already in DNF and can be returned as is.
+// The function uses filter(isUnionTExp, te.components) to extract all union type expressions from the components of the intersection.
+// It also uses filter((te) => !isUnionTExp(te), te.components) to extract all components that are not union type expressions.
+// The makeDnf function is called with two arguments:
+// The list of union type expressions (filter(isUnionTExp, te.components)).
+// The list of other type expressions that are not unions (filter((te) => !isUnionTExp(te), te.components)).
+
 
 // (factors . Product(disj)) 
 export const makeDnf = (disj: UnionTExp[], factors: TExp[]): TExp =>
     isEmpty(disj) && isEmpty(factors) ? makeAnyTExp() :
 isEmpty(disj) ? ({tag: "InterTExp", components: factors}) : 
     factorDisj(disj, factors);
+// Parameters: 
+// disj: An array of UnionTExp (union type expressions). These represent parts of the type expression that need to be combined in a disjunctive manner.
+// factors: An array of TExp (type expressions). These represent parts of the type expression that are already in a conjunctive (intersected) form.
+// isEmpty(disj) && isEmpty(factors): If both the disj and factors arrays are empty, the function returns makeAnyTExp(). This represents the type that includes all possible values.
+// isEmpty(disj): If disj is empty but factors is not, the function returns an InterTExp with the components being the factors. This means that all the factors are intersected together.
+// If disj is not empty, the function calls factorDisj(disj, factors). This function handles the case where there are still disjunctive parts that need to be processed.
+
 
 // Preconditions: disj is not empty, factors is not empty
 // Compute Union(Product_i(disj_i) x factors)
@@ -203,11 +265,27 @@ isEmpty(disj) ? ({tag: "InterTExp", components: factors}) :
 export const factorDisj = (disj: UnionTExp[], factors: TExp[]): TExp =>
     makeUnionTExp(map(makeInterTExp, 
                       multiplyInter(factors, makeProduct(disj))));
+// example:
+// disj = [UnionTExp([a, b]), UnionTExp([c, d]), UnionTExp([d, e, f])]
+// factors = [g, h]
+// makeProduct(disj) return 
+// [[a, c, d], [a, c, e], [a, c, f], [a, d, d], [a, d, e], [a, d, f], [b, c, d], [b, c, e], [b, c, f], [b, d, d], [b, d, e], [b, d, f]]
+// The multiplyInter function will take factors and the result from makeProduct(disj) and concatenate factors to each product:
+// [  [a, c, d, g, h], [a, c, e, g, h], [a, c, f, g, h], [a, d, d, g, h], [a, d, e, g, h], [a, d, f, g, h], [b, c, d, g, h], [b, c, e, g, h], [b, c, f, g, h], [b, d, d, g, h], [b, d, e, g, h], [b, d, f, g, h]]
+// Finally, factorDisj will use map and makeInterTExp to wrap each product with InterTExp and then wrap the whole result with UnionTExp:
+/*
+So, the final result of factorDisj(disj, factors) will be:
+UnionTExp([
+  InterTExp([a, c, d, g, h]), InterTExp([a, c, e, g, h]), InterTExp([a, c, f, g, h]), InterTExp([a, d, d, g, h]), InterTExp([a, d, e, g, h]), InterTExp([a, d, f, g, h]),
+  InterTExp([b, c, d, g, h]), InterTExp([b, c, e, g, h]), InterTExp([b, c, f, g, h]), InterTExp([b, d, d, g, h]), InterTExp([b, d, e, g, h]), InterTExp([b, d, f, g, h])
+])
+*/
 
-                      // Preconditions: factors is not empty, products is not empty
+// Preconditions: factors is not empty, products is not empty
 // [a,b] * [[c,d], [e,f]] => [[a,b,c,d], [a,b,e,f]]
 export const multiplyInter = (factors: TExp[], products: TExp[][]): TExp[][] =>
     map((product: TExp[]) => concat(product, factors), products);
+
 
 // Preconditions: disj is not empty
 // (a+b) => [[a], [b]]
@@ -216,6 +294,26 @@ export const multiplyInter = (factors: TExp[], products: TExp[][]): TExp[][] =>
 export const makeProduct = (disj: UnionTExp[]): TExp[][] =>
     (disj.length == 1) ? map((x)=>[x], disj[0].components) :
     crossProduct(makeProduct([disj[0]]), makeProduct(disj.slice(1)));
+// The makeProduct function is responsible for generating the Cartesian product of the components of union type expressions (UnionTExp). This is a key step in converting a type expression into Disjunctive Normal Form (DNF).
+// Goal - Compute the Cartesian product of the union components to produce all possible combinations.
+// If disj contains only one UnionTExp, return a list where each component of the union is in its own list.
+// Recursive Case:
+// Recursively compute the Cartesian product of the first UnionTExp and the remaining UnionTExps.
+// Use crossProduct to combine the results from the first UnionTExp with the results from the remaining UnionTExps.
+// Example:
+// disj = [UnionTExp([a, b]), UnionTExp([c, d]), UnionTExp([e, f, g])]
+// Base Case for the First UnionTExp: makeProduct([UnionTExp([a, b])]). Result: [[a], [b]]
+// Recursive Case for the Remaining UnionTExps:
+// makeProduct([UnionTExp([c, d]), UnionTExp([e, f, g])]):
+// Compute makeProduct([UnionTExp([c, d])]): Result: [[c], [d]]
+// Compute makeProduct([UnionTExp([e, f, g])]): Result: [[e], [f], [g]]
+// Cross Product:
+// Compute the cross product of [[c], [d]] and [[e], [f], [g]]:
+// Result: [[c, e], [c, f], [c, g], [d, e], [d, f], [d, g]]
+// Compute the cross product of [[a], [b]] and [[c, e], [c, f], [c, g], [d, e], [d, f], [d, g]]:
+// Result: [[a, c, e], [a, c, f], [a, c, g], [a, d, e], [a, d, f], [a, d, g], [b, c, e], [b, c, f], [b, c, g], [b, d, e], [b, d, f], [b, d, g]]
+// This final result represents all possible combinations of the components from the union type expressions, achieving the goal of the makeProduct function.
+
 
 // [[a,b],[c,d]], [[e,f], [g,h]] => [[a,b,e,f], [a,b,g,h], [c,d,e,f], [c,d,g,h]]
 export const crossProduct = (ll1: TExp[][], ll2: TExp[][]): TExp[][] =>
