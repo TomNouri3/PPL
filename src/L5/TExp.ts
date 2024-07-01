@@ -337,6 +337,9 @@ export const crossProduct = (ll1: TExp[][], ll2: TExp[][]): TExp[][] =>
 export const isSubType = (te1: TExp, te2: TExp): boolean =>
     (isUnionTExp(te1) && isUnionTExp(te2)) ? isSubset(te1.components, te2.components) :
     isUnionTExp(te2) ? containsType(te2.components, te1) :
+    (isInterTExp(te1) && isInterTExp(te2)) ? isSubset(te1.components, te2.components) : // Added
+    isInterTExp(te1) ? all((te) => isSubType(te, te2), te1.components) : // Added
+    isInterTExp(te2) ? containsType(te2.components, te1) : // Added
     (isProcTExp(te1) && isProcTExp(te2)) ? checkProcTExps(te1, te2) :
     isTVar(te1) ? equals(te1, te2) :
     isAtomicTExp(te1) ? equals(te1, te2) :
