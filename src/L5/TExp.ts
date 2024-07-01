@@ -139,8 +139,8 @@ const removeDuplicatesAndAny = (tes: TExp[]): TExp[] =>
 
 export type DiffTExp = { tag: "DiffTExp"; components: TExp[]};
 
-export const makeDiffTExp = (tes: TExp[]): TExp => ///////////////????????????????
-    normalizeInter(({tag: "InterTExp", components: flattenSortInter(tes)})); //////////////???????
+export const makeDiffTExp = (tes: TExp[]): TExp =>
+    normalizeUnion(({tag: "UnionTExp", components: flattenSortUnion(tes)}));//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 export const isDiffTExp = (x: any): x is DiffTExp => x.tag === "DiffTExp";
 
