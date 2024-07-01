@@ -135,6 +135,16 @@ const removeDuplicatesAndAny = (tes: TExp[]): TExp[] =>
     [tes[0], ...removeDuplicatesAndAny(tes.slice(1))];
    
 // ----------------------------------------------------------------------------------------------------------
+// Diff
+
+export type DiffTExp = { tag: "DiffTExp"; components: TExp[]};
+
+export const makeDiffTExp = (tes: TExp[]): TExp => ///////////////????????????????
+    normalizeInter(({tag: "InterTExp", components: flattenSortInter(tes)})); //////////////???????
+
+export const isDiffTExp = (x: any): x is DiffTExp => x.tag === "DiffTExp";
+
+// ----------------------------------------------------------------------------------------------------------
 // Union
 export type UnionTExp = { tag: "UnionTExp"; components: TExp[]};
 export const makeUnionTExp = (tes: TExp[]): TExp =>
@@ -321,6 +331,8 @@ export const crossProduct = (ll1: TExp[][], ll2: TExp[][]): TExp[][] =>
          map((l2: TExp[]) => concat(l1, l2), ll2),
             ll1).flat();
 
+// ----------------------------------------------------------------------------------------------------------
+
 // SubType comparator
 export const isSubType = (te1: TExp, te2: TExp): boolean =>
     (isUnionTExp(te1) && isUnionTExp(te2)) ? isSubset(te1.components, te2.components) :
@@ -423,7 +435,14 @@ export const parseTExp = (texp: Sexp): Result<TExp> =>
 
 const parseCompoundTExp = (texps: Sexp[]): Result<TExp> =>
     (texps[0] === "union") ? parseUnionTExp(texps) :
+    (texps[0] === "inter") ? parseInterTExp(texps) : // Added
     parseProcTExp(texps);
+
+// Added
+const parseInterTExp = (texps: Sexp[]): Result<TExp> =>
+    mapv(mapResult(parseTExp, texps.slice(1)),
+            (tes: TExp[]) => dnf(makeInterTExp(tes)));
+    
 
 // Expect (union texp1 ...)
 const parseUnionTExp = (texps: Sexp[]): Result<TExp> =>
@@ -478,6 +497,17 @@ export const unparseTExp = (te: TExp): Result<string> => {
         (tes.length == 1) ? tes[0] :  // (union T) -> T
         `(union ${tes[0]} ${parenthesizeUnion(tes.slice(1))})`
 
+    // Added
+    const parenthesizeInter = (tes: string[]): string =>
+        (tes.length == 1) ? tes[0] :  // (inter T) -> T
+        `(inter ${tes[0]} ${parenthesizeInter(tes.slice(1))})`
+
+    // Added
+    const parenthesizeDiff = (tes: string[]): string =>
+        (tes.length == 1) ? tes[0] :  // (diff T) -> T
+        `(diff ${tes[0]} ${parenthesizeDiff(tes.slice(1))})`
+
+
     const up = (x?: TExp): Result<string | string[]> =>
         isNumTExp(x) ? makeOk('number') :
         isBoolTExp(x) ? makeOk('boolean') :
@@ -489,6 +519,10 @@ export const unparseTExp = (te: TExp): Result<string> => {
         isTVar(x) ? up(tvarContents(x)) :
         isUnionTExp(x) ? mapv(mapResult(unparseTExp, x.components), (componentTEs: string[]) => 
                                 parenthesizeUnion(componentTEs)) :
+        isInterTExp(x) ? mapv(mapResult(unparseTExp, x.components), (componentTEs: string[]) => // Added
+            parenthesizeInter(componentTEs)) : // Added
+        isDiffTExp(x) ? mapv(mapResult(unparseTExp, x.components), (componentTEs: string[]) => // Added
+            parenthesizeDiff(componentTEs)) : // Added
         isProcTExp(x) ? bind(unparseTuple(x.paramTEs), (paramTEs: string[]) =>
                             mapv(unparseTExp(x.returnTE), (returnTE: string) =>
                                 [...paramTEs, '->', returnTE])) :
