@@ -335,34 +335,19 @@ export const crossProduct = (ll1: TExp[][], ll2: TExp[][]): TExp[][] =>
 
 export const makeDiffTExp = (te1: TExp, te2: TExp): TExp => {
     // Base cases for atomic type expressions
-    if (equals(te1, te2)) {
-        return makeNeverTExp(); // te1 \ te2 = ∅ if te1 == te2
-    }
+    return equals(te1, te2) ? makeNeverTExp() :
+           isNeverTExp(te1) || isAnyTExp(te2) ? makeNeverTExp() :
+           isAnyTExp(te1) || isNeverTExp(te2) ? te1 :
 
-    if (isNeverTExp(te1) || isAnyTExp(te2)) {
-        return makeNeverTExp(); // ∅ \ te2 = ∅, te1 \ ∅ = te1, te1 \ any = ∅
-    }
+           // Handle union type expressions
+           isUnionTExp(te1) ? makeUnionTExp(te1.components.filter((component) => !isSubType(component, te2))) :
 
-    if (isAnyTExp(te1) || isNeverTExp(te2)) {
-        return te1; // any \ te2 = any, te1 \ ∅ = te1
-    }
+           // Handle intersection type expressions
+           isInterTExp(te1) ? makeInterTExp(te1.components.map((component) => makeDiffTExp(component, te2))) :
 
-    // Handle union type expressions
-    if (isUnionTExp(te1)) {
-        const newComponents = te1.components.filter((component) => !isSubType(component, te2));
-        return makeUnionTExp(newComponents);
-    }
-
-    // Handle intersection type expressions
-    if (isInterTExp(te1)) {
-        const newComponents = te1.components.map((component) => makeDiffTExp(component, te2));
-        return makeInterTExp(newComponents);
-    }
-
-    // Default case: return te1 as is if te2 cannot be subtracted from it
-    return te1;
+           // Default case: return te1 as is if te2 cannot be subtracted from it
+           te1;
 };
-
 
 // SubType comparator
 export const isSubType = (te1: TExp, te2: TExp): boolean =>
