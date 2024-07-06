@@ -51,11 +51,17 @@ export const isAtomicTExp = (x: any): x is AtomicTExp =>
     isNumTExp(x) || isBoolTExp(x) || isStrTExp(x) || isVoidTExp(x) || isAnyTExp(x) || isNeverTExp(x); // Added
 
 export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp | InterTExp ; // | DiffTExp; // Added
-export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x)|| isInterTExp(x) ; // || isDiffTExp(x); // Added
+export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x)|| isInterTExp(x) || isTypePredTExp(x); // || isDiffTExp(x); // Added+
 
 export type NonTupleTExp = AtomicTExp | ProcTExp | TVar | UnionTExp | InterTExp ; // | DiffTExp; // Added
 export const isNonTupleTExp = (x: any): x is NonTupleTExp =>
     isAtomicTExp(x) || isProcTExp(x) || isTVar(x) || isUnionTExp(x)|| isInterTExp(x) ; // || isDiffTExp(x); // Added
+
+//Added+
+export type TypePredTExp = { tag: "TypePredTExp"; paramTE: TExp; returnTE: TExp; };
+export const makeTypePredTExp = (paramTE: TExp, returnTE: TExp): TypePredTExp =>
+    ({ tag: "TypePredTExp", paramTE: paramTE, returnTE: returnTE });
+export const isTypePredTExp = (x: any): x is TypePredTExp => x.tag === "TypePredTExp";
 
 // Added
 export type AnyTExp = { tag: "AnyTExp" };
@@ -348,6 +354,8 @@ export const makeDiffTExp = (te1: TExp, te2: TExp): TExp => {
            // Default case: return te1 as is if te2 cannot be subtracted from it
            te1;
 };
+// Added?
+// N / (N inter N) -------> problem!
 
 // SubType comparator
 export const isSubType = (te1: TExp, te2: TExp): boolean =>
@@ -482,14 +490,46 @@ const parseUnionTExp = (texps: Sexp[]): Result<TExp> =>
 */
 const parseProcTExp = (texps: Sexp[]): Result<ProcTExp> => {
     const pos = texps.indexOf('->');
+    const posnew = texps.indexOf('is?'); // Added+
     return (pos === -1)  ? makeFailure(`Procedure type expression without -> - ${format(texps)}`) :
            (pos === 0) ? makeFailure(`No param types in proc texp - ${format(texps)}`) :
            (pos === texps.length - 1) ? makeFailure(`No return type in proc texp - ${format(texps)}`) :
            (texps.slice(pos + 1).indexOf('->') > -1) ? makeFailure(`Only one -> allowed in a procexp - ${format(texps)}`) :
+           
            bind(parseTupleTExp(texps.slice(0, pos)), (args: TExp[]) =>
                mapv(parseTExp(texps[pos + 1]), (returnTE: TExp) =>
                     makeProcTExp(args, returnTE)));
 };
+// Added+
+// parseTupleTExp(texps.slice(0, pos)): Parses the parameter types before the -> symbol.
+// parseTExp(texps[pos + 1]): Parses the return type after the -> symbol.
+// makeProcTExp(args, returnTE): Creates a ProcTExp using the parsed parameter types and return type.
+// Example 1
+// Given the S-expression: (number string -> boolean)
+// Initial S-expression structure: const texps: Sexp[] = ['number', 'string', '->', 'boolean'];
+// args would be [makeNumTExp(), makeStrTExp()]
+// returnTE would be makeBoolTExp()
+// Constructing ProcTExp: makeProcTExp(args, returnTE);
+// Constructed ProcTExp:
+/*
+{
+  tag: "ProcTExp",
+  paramTEs: [makeNumTExp(), makeStrTExp()],
+  returnTE: makeBoolTExp()
+}
+*/
+// Example 2
+// ((number string) -> (union boolean number))
+// Initial S-expression structure: const texps: Sexp[] = [['number', 'string'], '->', ['union', 'boolean', 'number']];
+// Constructed ProcTExp
+/*
+Constructed ProcTExp:
+{
+  tag: "ProcTExp",
+  paramTEs: [makeNumTExp(), makeStrTExp()],
+  returnTE: makeUnionTExp([makeBoolTExp(), makeNumTExp()])
+}
+*/
 
 /*
 ;; Expected structure: <te1> [* <te2> ... * <ten>]?
