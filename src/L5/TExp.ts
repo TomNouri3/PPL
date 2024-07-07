@@ -490,7 +490,7 @@ const parseUnionTExp = (texps: Sexp[]): Result<TExp> =>
 */
 const parseProcTExp = (texps: Sexp[]): Result<ProcTExp> => {
     const pos = texps.indexOf('->');
-    const posnew = texps.indexOf('is?'); // Added+
+    // const posnew = texps.indexOf('is?'); // Added+
     return (pos === -1)  ? makeFailure(`Procedure type expression without -> - ${format(texps)}`) :
            (pos === 0) ? makeFailure(`No param types in proc texp - ${format(texps)}`) :
            (pos === texps.length - 1) ? makeFailure(`No return type in proc texp - ${format(texps)}`) :
