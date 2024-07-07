@@ -8,7 +8,7 @@ import { isAppExp, isBoolExp, isDefineExp, isIfExp, isLetrecExp, isLetExp, isNum
 import { applyTEnv, makeEmptyTEnv, makeExtendTEnv, TEnv } from "./TEnv";
 import { isProcTExp, makeBoolTExp, makeNumTExp, makeProcTExp, makeStrTExp, makeVoidTExp,
          parseTE, unparseTExp, makeUnionTExp,
-         BoolTExp, NumTExp, StrTExp, TExp, VoidTExp, isSubType } from "./TExp";
+         BoolTExp, NumTExp, StrTExp, TExp, VoidTExp, isSubType, isTypePredTExp } from "./TExp";
 import { isEmpty, allT, first, rest, NonEmptyList, List, isNonEmptyList } from '../shared/list';
 import { Result, makeFailure, bind, makeOk, zipWithResult, either } from '../shared/result';
 import { parse as p } from "../shared/parser";
@@ -167,9 +167,10 @@ export const typeofProc = (proc: ProcExp, tenv: TEnv): Result<TExp> => {
     const argsTEs = map((vd) => vd.texp, proc.args);
     const extTEnv = makeExtendTEnv(map((vd) => vd.var, proc.args), argsTEs, tenv);
     const constraint1 = bind(typeofExps(proc.body, extTEnv), (body: TExp) => 
-                            checkCompatibleType(body, proc.returnTE, proc));
+                            checkCompatibleType(body,isTypePredTExp(proc.returnTE) ? makeBoolTExp() : proc.returnTE, proc)); // Added+
     return bind(constraint1, _ => makeOk(makeProcTExp(argsTEs, proc.returnTE)));
 };
+
 
 // Purpose: compute the type of an app-exp
 // Typing rule:
@@ -192,7 +193,7 @@ export const typeofApp = (app: AppExp, tenv: TEnv): Result<TExp> =>
         const constraints = zipWithResult((rand, trand) => bind(typeofExp(rand, tenv), (typeOfRand: TExp) => 
                                                                 checkCompatibleType(typeOfRand, trand, app)),
                                           app.rands, ratorTE.paramTEs);
-        return bind(constraints, _ => makeOk(ratorTE.returnTE));
+        return bind(constraints, _ => isTypePredTExp(ratorTE.returnTE) ? makeOk(makeBoolTExp()) : makeOk(ratorTE.returnTE)); // Added+
     });
 
 // Purpose: compute the type of a let-exp
