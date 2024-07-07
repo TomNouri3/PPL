@@ -16,8 +16,8 @@ describe('L52 Test of makeDiffTExp', () => {
         const diffTExp = bind(pt(te1), 
             (te1 : TExp) => bind(pt(te2), 
             (te2 : TExp) => 
-                makeDiffTExp(te1, te2)))
-        expect(unparseTExp(diffTExp)).toEqual(makeOk("any"));
+                unparseTExp(makeDiffTExp(te1, te2))))
+        expect(diffTExp).toEqual(makeOk("any"));
     });
 
     it('Basic type predicate test', () => {
@@ -26,8 +26,8 @@ describe('L52 Test of makeDiffTExp', () => {
         const diffTExp = bind(pt(te1), 
             (te1 : TExp) => bind(pt(te2), 
             (te2 : TExp) => 
-                makeDiffTExp(te1, te2)))
-        expect(unparseTExp(diffTExp)).toEqual(makeOk("number"));
+                unparseTExp(makeDiffTExp(te1, te2))))
+        expect(diffTExp).toEqual(makeOk("number"));
     });
 
     it('Basic type predicate test', () => {
@@ -36,8 +36,8 @@ describe('L52 Test of makeDiffTExp', () => {
         const diffTExp = bind(pt(te1), 
             (te1 : TExp) => bind(pt(te2), 
             (te2 : TExp) => 
-                makeDiffTExp(te1, te2)))
-        expect(unparseTExp(diffTExp)).toEqual(makeOk("string"));
+                unparseTExp(makeDiffTExp(te1, te2))))
+        expect(diffTExp).toEqual(makeOk("string"));
     });
 
     it('Basic type predicate test', () => {
@@ -46,8 +46,8 @@ describe('L52 Test of makeDiffTExp', () => {
         const diffTExp = bind(pt(te1), 
             (te1 : TExp) => bind(pt(te2), 
             (te2 : TExp) => 
-                makeDiffTExp(te1, te2)))
-        expect(unparseTExp(diffTExp)).toEqual(makeOk("(union number string)"));
+                unparseTExp(makeDiffTExp(te1, te2))))
+        expect(diffTExp).toEqual(makeOk("(union number string)"));
     });
 
     it('Basic type predicate test', () => {
@@ -56,8 +56,8 @@ describe('L52 Test of makeDiffTExp', () => {
         const diffTExp = bind(pt(te1), 
             (te1 : TExp) => bind(pt(te2), 
             (te2 : TExp) => 
-                makeDiffTExp(te1, te2)))
-        expect(unparseTExp(diffTExp)).toEqual(makeOk("string"));
+                unparseTExp(makeDiffTExp(te1, te2))))
+        expect(diffTExp).toEqual(makeOk("string"));
     });
 });
 
@@ -65,50 +65,50 @@ describe('L52 Test of isSubType', () => {
     it('Basic type predicate test', () => {
         const te1 = `any`;
         const te2 = `number`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(false);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(false));
     });
 
     it('Basic type predicate test', () => {
         const te1 = `number`;
         const te2 = `any`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(true);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(true));
     });
 
     it('Basic type predicate test', () => {
         const te1 = `number`;
         const te2 = `number`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(true);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(true));
     });
 
     it('Basic type predicate test', () => {
         const te1 = `number`;
         const te2 = `(union string number)`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(true);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(true));
     });
 
     it('Basic type predicate test', () => {
         const te1 = `(union string number)`;
         const te2 = `(union string number boolean)`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(true);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(true));
     });
 
     it('Basic type predicate test', () => {
         const te1 = `(inter any number)`;
         const te2 = `(union string number boolean)`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(true);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(true));
     });
 
     it('Basic type predicate test', () => {
         const te1 = `(inter (union string boolean) string)`;
         const te2 = `boolean`;
-        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => isSubType(te1, te2)))
-        expect(isSub).toEqual(false);
+        const isSub = bind(pt(te1), (te1 : TExp) => bind(pt(te2), (te2 : TExp) => makeOk(isSubType(te1, te2))))
+        expect(isSub).toEqual(makeOk(false));
     });
 });
 // L52 Tests End

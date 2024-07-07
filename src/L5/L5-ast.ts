@@ -6,7 +6,7 @@
 import { join, map, zipWith } from "ramda";
 import { Sexp, Token } from 's-expression';
 import { isCompoundSExp, isEmptySExp, isSymbolSExp, makeCompoundSExp, makeEmptySExp, makeSymbolSExp, SExpValue, valueToString } from './L5-value';
-import { isTVar, makeFreshTVar, parseTExp, unparseTExp, TExp } from './TExp';
+import { isTVar, makeFreshTVar, parseTExp, unparseTExp, TExp, makeTypePredTExp } from './TExp'; // Added+
 import { allT, first, rest, second, isEmpty, isNonEmptyList } from '../shared/list';
 import { parse as p, isToken, isSexpString } from "../shared/parser";
 import { Result, bind, makeFailure, mapResult, makeOk, mapv } from "../shared/result";
@@ -340,8 +340,13 @@ makeOk({
 const parseProcExp = (vars: Sexp, rest: Sexp[]): Result<ProcExp> => {
     if (isArray(vars)) {
         const args = mapResult(parseVarDecl, vars); // mapResult(parseVarDecl, vars) applies the parseVarDecl function to each element in vars. This results in a Result containing either a list of VarDecl objects (if successful) or a failure.
-        const body = mapResult(parseL5CExp, rest[0] === ":" ? rest.slice(2) : rest); // The function checks if the first element in rest is ":". If it is, it skips the first two elements (the colon and the return type) and parses the rest as the body. If it is not, it parses the entire rest as the body. mapResult(parseL5CExp, rest) applies parseL5CExp to each element in rest to parse them into CExp objects.
-        const returnTE = rest[0] === ":" ? parseTExp(rest[1]) : makeOk(makeFreshTVar()); // If the first element in rest is ":", it parses the second element as the return type using parseTExp. If there is no ":", it generates a fresh type variable using makeFreshTVar.
+        const isTypePredicate = (rest[0] === ":" && rest[1] === "is?"); //Added+
+        const body = mapResult(parseL5CExp, isTypePredicate ? rest.slice(3) : (rest[0] === ":" ? rest.slice(2) : rest)); // Added+
+
+        const returnTE = isTypePredicate ? // Added+
+            bind(parseTExp(rest[2]), (texp: TExp) => makeOk(makeTypePredTExp(texp))) : // Added+
+            (rest[0] === ":" ? parseTExp(rest[1]) : makeOk(makeFreshTVar())); // Added+
+        
         // Construct ProcExp
         return bind(args, (args: VarDecl[]) =>
                     bind(body, (body: CExp[]) =>
