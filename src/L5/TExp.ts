@@ -50,7 +50,7 @@ export type AtomicTExp = NumTExp | BoolTExp | StrTExp | VoidTExp| AnyTExp | Neve
 export const isAtomicTExp = (x: any): x is AtomicTExp =>
     isNumTExp(x) || isBoolTExp(x) || isStrTExp(x) || isVoidTExp(x) || isAnyTExp(x) || isNeverTExp(x); // Added
 
-export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp | InterTExp ; // | DiffTExp; // Added
+export type CompoundTExp = ProcTExp | TupleTExp | UnionTExp | InterTExp | TypePredTExp; // | DiffTExp; // Added+
 export const isCompoundTExp = (x: any): x is CompoundTExp => isProcTExp(x) || isTupleTExp(x) || isUnionTExp(x)|| isInterTExp(x) || isTypePredTExp(x); // || isDiffTExp(x); // Added+
 
 export type NonTupleTExp = AtomicTExp | ProcTExp | TVar | UnionTExp | InterTExp ; // | DiffTExp; // Added
@@ -58,10 +58,11 @@ export const isNonTupleTExp = (x: any): x is NonTupleTExp =>
     isAtomicTExp(x) || isProcTExp(x) || isTVar(x) || isUnionTExp(x)|| isInterTExp(x) ; // || isDiffTExp(x); // Added
 
 //Added+
-export type TypePredTExp = { tag: "TypePredTExp"; paramTE: TExp; returnTE: TExp; };
-export const makeTypePredTExp = (paramTE: TExp, returnTE: TExp): TypePredTExp =>
-    ({ tag: "TypePredTExp", paramTE: paramTE, returnTE: returnTE });
+export type TypePredTExp = { tag: "TypePredTExp"; predTE: TExp; };
+export const makeTypePredTExp = (predTE: TExp): TypePredTExp =>
+    ({ tag: "TypePredTExp", predTE: predTE });
 export const isTypePredTExp = (x: any): x is TypePredTExp => x.tag === "TypePredTExp";
+
 
 // Added
 export type AnyTExp = { tag: "AnyTExp" };
@@ -583,6 +584,7 @@ export const unparseTExp = (te: TExp): Result<string> => {
         isNeverTExp(x) ? makeOk('never') : // Added
         isEmptyTVar(x) ? makeOk(x.var) :
         isTVar(x) ? up(tvarContents(x)) :
+        isTypePredTExp(x) ? makeOk("is? " + up(x.predTE)):
         isUnionTExp(x) ? mapv(mapResult(unparseTExp, x.components), (componentTEs: string[]) => 
                                 parenthesizeUnion(componentTEs)) :
         isInterTExp(x) ? mapv(mapResult(unparseTExp, x.components), (componentTEs: string[]) => // Added
