@@ -462,11 +462,15 @@ export const parseTExp = (texp: Sexp): Result<TExp> =>
     (texp === "boolean") ? makeOk(makeBoolTExp()) :
     (texp === "void") ? makeOk(makeVoidTExp()) :
     (texp === "string") ? makeOk(makeStrTExp()) :
+    // if there is more than one argument and the second argument is -> makeOk(makePredTExp(texp)) 
     (texp === "any") ? makeOk(makeAnyTExp()) : // Added
     (texp === "never") ? makeOk(makeNeverTExp()) : // Added
     isString(texp) ? makeOk(makeTVar(texp)) :
     isArray(texp) ? parseCompoundTExp(texp) :
     makeFailure(`Unexpected TExp - ${format(texp)}`);
+
+
+    //makePredTExp(texp) // TODO here
 
 const parseCompoundTExp = (texps: Sexp[]): Result<TExp> =>
     (texps[0] === "union") ? parseUnionTExp(texps) :
@@ -688,3 +692,15 @@ export const equivalentTEs = (te1: TExp, te2: TExp): boolean => {
         return (uniq(map((p) => p.left.var, tvarsPairs)).length === uniq(map((p) => p.right.var, tvarsPairs)).length);
     }
 };
+
+
+
+
+
+
+
+
+
+
+
+

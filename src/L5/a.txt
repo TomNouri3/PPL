@@ -1,0 +1,27 @@
+public class VotingProbabilityCalculator {
+    
+    public static double calculateVotingProbability(double[] voteProbabilities) {
+        int numberOfVotes = voteProbabilities.length;
+        double[][] probabilityTable = new double[numberOfVotes + 1][numberOfVotes + 1];
+        
+        for (double[] row : probabilityTable) {
+            Arrays.fill(row, 0.0);
+        }
+        probabilityTable[0][0] = 1.0;
+        
+        for (int i = 1; i <= numberOfVotes; i++) {
+            for (int j = 0; j <= i; j++) {
+                if (j > 0) {
+                    probabilityTable[i][j] = probabilityTable[i - 1][j - 1] * voteProbabilities[i - 1];
+                }
+                probabilityTable[i][j] += probabilityTable[i - 1][j] * (1 - voteProbabilities[i - 1]);
+            }
+        }
+        
+        double majorityProbability = 0.0;
+        for (int j = (numberOfVotes / 2) + 1; j <= numberOfVotes; j++) {
+            majorityProbability += probabilityTable[numberOfVotes][j];
+        }
+        
+        return majorityProbability;
+    }
