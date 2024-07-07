@@ -471,7 +471,12 @@ export const parseTExp = (texp: Sexp): Result<TExp> =>
 const parseCompoundTExp = (texps: Sexp[]): Result<TExp> =>
     (texps[0] === "union") ? parseUnionTExp(texps) :
     (texps[0] === "inter") ? parseInterTExp(texps) : // Added
+    (texps[0] === "is?") ? parseTypePredTExp(texps) : // Added+
     parseProcTExp(texps);
+
+// Added+
+const parseTypePredTExp = (texps: Sexp[]): Result<TExp> => 
+     bind((parseTExp(texps[1])), (texp: TExp) => makeOk(makeTypePredTExp(texp)));
 
 // Added
 const parseInterTExp = (texps: Sexp[]): Result<TExp> =>
@@ -491,12 +496,14 @@ const parseUnionTExp = (texps: Sexp[]): Result<TExp> =>
 */
 const parseProcTExp = (texps: Sexp[]): Result<ProcTExp> => {
     const pos = texps.indexOf('->');
-    // const posnew = texps.indexOf('is?'); // Added+
     return (pos === -1)  ? makeFailure(`Procedure type expression without -> - ${format(texps)}`) :
            (pos === 0) ? makeFailure(`No param types in proc texp - ${format(texps)}`) :
            (pos === texps.length - 1) ? makeFailure(`No return type in proc texp - ${format(texps)}`) :
            (texps.slice(pos + 1).indexOf('->') > -1) ? makeFailure(`Only one -> allowed in a procexp - ${format(texps)}`) :
-           
+           (texps.slice(pos + 1)[0] === "is?") ? 
+            bind(parseTupleTExp(texps.slice(0, pos)), (paramTypes: TExp[]) =>
+            mapv(parseTExp(texps.slice(pos + 1, pos + 3)), (returnTE: TExp) =>
+                 makeProcTExp(paramTypes, returnTE))) : 
            bind(parseTupleTExp(texps.slice(0, pos)), (args: TExp[]) =>
                mapv(parseTExp(texps[pos + 1]), (returnTE: TExp) =>
                     makeProcTExp(args, returnTE)));

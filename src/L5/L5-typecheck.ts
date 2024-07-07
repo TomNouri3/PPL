@@ -4,11 +4,11 @@ import { equals, map, zipWith } from 'ramda';
 import { isAppExp, isBoolExp, isDefineExp, isIfExp, isLetrecExp, isLetExp, isNumExp,
          isPrimOp, isProcExp, isProgram, isStrExp, isVarRef, parseL5Exp, unparse,
          AppExp, BoolExp, DefineExp, Exp, IfExp, LetrecExp, LetExp, NumExp,
-         Parsed, PrimOp, ProcExp, Program, StrExp, parseL5Program } from "./L5-ast";
+         Parsed, PrimOp, ProcExp, Program, StrExp, parseL5Program, VarRef } from "./L5-ast"; // Added+
 import { applyTEnv, makeEmptyTEnv, makeExtendTEnv, TEnv } from "./TEnv";
 import { isProcTExp, makeBoolTExp, makeNumTExp, makeProcTExp, makeStrTExp, makeVoidTExp,
          parseTE, unparseTExp, makeUnionTExp,
-         BoolTExp, NumTExp, StrTExp, TExp, VoidTExp, isSubType, isTypePredTExp } from "./TExp";
+         BoolTExp, NumTExp, StrTExp, TExp, VoidTExp, isSubType, isTypePredTExp, makeDiffTExp } from "./TExp"; // Added+
 import { isEmpty, allT, first, rest, NonEmptyList, List, isNonEmptyList } from '../shared/list';
 import { Result, makeFailure, bind, makeOk, zipWithResult, either, mapv, isOk } from '../shared/result';
 import { parse as p } from "../shared/parser";
@@ -99,7 +99,7 @@ const numOpTExp = parseTE('(number * number -> number)');
 const numCompTExp = parseTE('(number * number -> boolean)');
 const boolOpTExp = parseTE('(boolean * boolean -> boolean)');
 
-// Todo: cons, car, cdr, list
+// // Todo: cons, car, cdr, list
 export const typeofPrim = (p: PrimOp): Result<TExp> =>
     (p.op === '+') ? numOpTExp :
     (p.op === '-') ? numOpTExp :
@@ -111,12 +111,12 @@ export const typeofPrim = (p: PrimOp): Result<TExp> =>
     (p.op === '<') ? numCompTExp :
     (p.op === '=') ? numCompTExp :
     // Important to use a different signature for each op with a TVar to avoid capture
-    (p.op === 'number?') ? parseTE('(T -> boolean)') :
-    (p.op === 'boolean?') ? parseTE('(T -> boolean)') :
-    (p.op === 'string?') ? parseTE('(T -> boolean)') :
-    (p.op === 'list?') ? parseTE('(T -> boolean)') :
-    (p.op === 'pair?') ? parseTE('(T -> boolean)') :
-    (p.op === 'symbol?') ? parseTE('(T -> boolean)') :
+    (p.op === 'number?') ? parseTE('(any -> boolean)') :
+    (p.op === 'boolean?') ? parseTE('(any -> boolean)') :
+    (p.op === 'string?') ? parseTE('(any -> boolean)') :
+    (p.op === 'list?') ? parseTE('(any -> boolean)') :
+    (p.op === 'pair?') ? parseTE('(any -> boolean)') :
+    (p.op === 'symbol?') ? parseTE('(any -> boolean)') :
     (p.op === 'not') ? parseTE('(boolean -> boolean)') :
     (p.op === 'eq?') ? parseTE('(T1 * T2 -> boolean)') :
     (p.op === 'string=?') ? parseTE('(T1 * T2 -> boolean)') :
@@ -163,13 +163,58 @@ export const isTypePredApp = (e: Exp, tenv: TEnv): Result<AppExp> =>
     makeFailure("not a valid application");
 
 
+export const typeofIf = (ifExp: IfExp, tenv: TEnv): Result<TExp> => {
+    const testResult = isTypePredApp(ifExp.test, tenv);
+    
+    if (isOk(testResult)) {
+        return analyzeIfWithTypePred(ifExp, tenv);
+    } else {
+        return typeofIfNormal(ifExp, tenv);
+    }
+};
 
-export const typeofIf = (ifExp: IfExp, tenv: TEnv): Result<TExp> =>
-    either(
-        bind (isTypePredApp(ifExp.test, tenv), ({/* Add parameter here */}) => {}),
-        makeOk,
-        () => typeofIfNormal(ifExp, tenv));
-        
+
+// itay
+export const analyzeIfWithTypePred = (ifExp: IfExp, tenv: TEnv): Result<TExp> => {
+    if(isAppExp(ifExp.test)) {
+        if(isProcExp(ifExp.test.rator) && (isVarRef(ifExp.test.rands[0])) && isTypePredTExp(ifExp.test.rator.returnTE)) {
+            const varName = ifExp.test.rands[0].var;
+            const testTE = typeofExp(ifExp.test, tenv);
+            const thenTE = typeofExp(ifExp.then, makeExtendTEnv([varName], [ifExp.test.rator.returnTE.predTE], tenv));
+            const prevType = applyTEnv(tenv, varName);
+            if(isOk(prevType)) {
+                const altTE = typeofExp(ifExp.alt, makeExtendTEnv([varName], [makeDiffTExp(prevType.value, ifExp.test.rator.returnTE.predTE)], tenv));
+                const constraint1 = bind(testTE, testTE => checkCompatibleType(testTE, makeBoolTExp(), ifExp));
+                const constraint2 = bind(thenTE, (thenTE: TExp) =>
+                            bind(altTE, (altTE: TExp) =>
+                                makeOk(makeUnion(thenTE, altTE))));
+                 return bind(constraint1, (_c1: true) =>
+                    constraint2);
+            }
+        }
+        else if(isVarRef(ifExp.test.rator)) {
+            const v = applyTEnv(tenv, ifExp.test.rator.var);
+            const vv = isOk(v) ? v.value : "no";
+            if(isProcTExp(vv) && isTypePredTExp(vv.returnTE) && isVarRef(ifExp.test.rands[0]) ) {
+                const varName = ifExp.test.rands[0].var;
+                const testTE = typeofExp(ifExp.test, tenv);
+                const thenTE = typeofExp(ifExp.then, makeExtendTEnv([varName], [vv.returnTE.predTE], tenv));
+                const prevType = applyTEnv(tenv, varName);
+            if(isOk(prevType)) {
+                const altTE = typeofExp(ifExp.alt, makeExtendTEnv([varName], [makeDiffTExp(prevType.value, vv.returnTE.predTE)], tenv));
+                const constraint1 = bind(testTE, testTE => checkCompatibleType(testTE, makeBoolTExp(), ifExp));
+                const constraint2 = bind(thenTE, (thenTE: TExp) =>
+                            bind(altTE, (altTE: TExp) =>
+                                makeOk(makeUnion(thenTE, altTE))));
+                const whatIsThis = bind(constraint1, (x: true) =>
+                    constraint2);
+                return whatIsThis;
+                }        
+            }
+        }
+    }
+    return typeofIfNormal(ifExp, tenv);
+};
 
 // Purpose: compute the type of a proc-exp
 // Typing rule:

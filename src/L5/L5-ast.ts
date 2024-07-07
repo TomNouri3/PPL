@@ -344,7 +344,7 @@ const parseProcExp = (vars: Sexp, rest: Sexp[]): Result<ProcExp> => {
         const body = mapResult(parseL5CExp, isTypePredicate ? rest.slice(3) : (rest[0] === ":" ? rest.slice(2) : rest)); // Added+
 
         const returnTE = isTypePredicate ? // Added+
-            bind(parseTExp(rest[2]), (texp: TExp) => makeOk(makeTypePredTExp(texp))) : // Added+
+            parseTExp(rest.slice(1, 3)) : // Added+
             (rest[0] === ":" ? parseTExp(rest[1]) : makeOk(makeFreshTVar())); // Added+
         
         // Construct ProcExp
