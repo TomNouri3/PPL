@@ -504,9 +504,9 @@ const parseProcTExp = (texps: Sexp[]): Result<ProcTExp> => {
            (pos === 0) ? makeFailure(`No param types in proc texp - ${format(texps)}`) :
            (pos === texps.length - 1) ? makeFailure(`No return type in proc texp - ${format(texps)}`) :
            (texps.slice(pos + 1).indexOf('->') > -1) ? makeFailure(`Only one -> allowed in a procexp - ${format(texps)}`) :
-           (texps.slice(pos + 1)[0] === "is?") ? 
-            bind(parseTupleTExp(texps.slice(0, pos)), (paramTypes: TExp[]) =>
-            mapv(parseTExp(texps.slice(pos + 1, pos + 3)), (returnTE: TExp) =>
+           (texps.slice(pos + 1)[0] === "is?") ? // Added+
+            bind(parseTupleTExp(texps.slice(0, pos)), (paramTypes: TExp[]) => // Added+
+            mapv(parseTExp(texps.slice(pos + 1, pos + 3)), (returnTE: TExp) => // Added+
                  makeProcTExp(paramTypes, returnTE))) : 
            bind(parseTupleTExp(texps.slice(0, pos)), (args: TExp[]) =>
                mapv(parseTExp(texps[pos + 1]), (returnTE: TExp) =>
