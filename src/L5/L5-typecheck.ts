@@ -173,48 +173,87 @@ export const typeofIf = (ifExp: IfExp, tenv: TEnv): Result<TExp> => {
     }
 };
 
-
-// itay
 export const analyzeIfWithTypePred = (ifExp: IfExp, tenv: TEnv): Result<TExp> => {
-    if(isAppExp(ifExp.test)) {
-        if(isProcExp(ifExp.test.rator) && (isVarRef(ifExp.test.rands[0])) && isTypePredTExp(ifExp.test.rator.returnTE)) {
-            const varName = ifExp.test.rands[0].var;
-            const testTE = typeofExp(ifExp.test, tenv);
-            const thenTE = typeofExp(ifExp.then, makeExtendTEnv([varName], [ifExp.test.rator.returnTE.predTE], tenv));
-            const prevType = applyTEnv(tenv, varName);
-            if(isOk(prevType)) {
-                const altTE = typeofExp(ifExp.alt, makeExtendTEnv([varName], [makeDiffTExp(prevType.value, ifExp.test.rator.returnTE.predTE)], tenv));
-                const constraint1 = bind(testTE, testTE => checkCompatibleType(testTE, makeBoolTExp(), ifExp));
-                const constraint2 = bind(thenTE, (thenTE: TExp) =>
-                            bind(altTE, (altTE: TExp) =>
-                                makeOk(makeUnion(thenTE, altTE))));
-                 return bind(constraint1, (_c1: true) =>
-                    constraint2);
-            }
-        }
-        else if(isVarRef(ifExp.test.rator)) {
-            const v = applyTEnv(tenv, ifExp.test.rator.var);
-            const vv = isOk(v) ? v.value : "no";
-            if(isProcTExp(vv) && isTypePredTExp(vv.returnTE) && isVarRef(ifExp.test.rands[0]) ) {
-                const varName = ifExp.test.rands[0].var;
-                const testTE = typeofExp(ifExp.test, tenv);
-                const thenTE = typeofExp(ifExp.then, makeExtendTEnv([varName], [vv.returnTE.predTE], tenv));
-                const prevType = applyTEnv(tenv, varName);
-            if(isOk(prevType)) {
-                const altTE = typeofExp(ifExp.alt, makeExtendTEnv([varName], [makeDiffTExp(prevType.value, vv.returnTE.predTE)], tenv));
-                const constraint1 = bind(testTE, testTE => checkCompatibleType(testTE, makeBoolTExp(), ifExp));
-                const constraint2 = bind(thenTE, (thenTE: TExp) =>
-                            bind(altTE, (altTE: TExp) =>
-                                makeOk(makeUnion(thenTE, altTE))));
-                const whatIsThis = bind(constraint1, (x: true) =>
-                    constraint2);
-                return whatIsThis;
-                }        
-            }
+    if (isAppExp(ifExp.test)) {
+        if (isProcExp(ifExp.test.rator)  && isTypePredTExp(ifExp.test.rator.returnTE) && isVarRef(ifExp.test.rands[0])) {
+            return analyzeIfWithProcExp(ifExp, tenv);
+        } else if (isVarRef(ifExp.test.rator)) {
+            return analyzeIfWithVarRef(ifExp, tenv);
         }
     }
     return typeofIfNormal(ifExp, tenv);
 };
+
+const analyzeIfWithProcExp = (ifExp: IfExp, tenv: TEnv): Result<TExp> => {
+    const testExp = ifExp.test;
+    if (!isAppExp(testExp)) {
+        return typeofIfNormal(ifExp, tenv);
+    }
+
+    const rator = testExp.rator;
+    const rands = testExp.rands;
+
+    if (!(isProcExp(rator) && isVarRef(rands[0]) && isTypePredTExp(rator.returnTE))) {
+        return typeofIfNormal(ifExp, tenv);
+    }
+
+    const varName = rands[0].var;
+    const testTypeResult = typeofExp(testExp, tenv);
+    const extendedEnvForThen = makeExtendTEnv([varName], [rator.returnTE.predTE], tenv);
+    const thenTypeResult = typeofExp(ifExp.then, extendedEnvForThen);
+    const previousType = applyTEnv(tenv, varName);
+
+    if (!isOk(previousType)) {
+        return typeofIfNormal(ifExp, tenv);
+    }
+
+    const diffType = makeDiffTExp(previousType.value, rator.returnTE.predTE);
+    const extendedEnvForAlt = makeExtendTEnv([varName], [diffType], tenv);
+    const altTypeResult = typeofExp(ifExp.alt, extendedEnvForAlt);
+
+    const testTypeCheck = bind(testTypeResult, testTE => checkCompatibleType(testTE, makeBoolTExp(), ifExp));
+    const combinedTypeResult = bind(thenTypeResult, thenTE => bind(altTypeResult, altTE => makeOk(makeUnion(thenTE, altTE))));
+
+    return bind(testTypeCheck, () => combinedTypeResult);
+};
+
+
+const analyzeIfWithVarRef = (ifExp: IfExp, tenv: TEnv): Result<TExp> => {
+    const { test, then, alt } = ifExp;
+
+    if (!isAppExp(test) || !isVarRef(test.rator)) {
+        return typeofIfNormal(ifExp, tenv);
+    }
+
+    const ratorVar = test.rator.var;
+    const ratorTypeResult = applyTEnv(tenv, ratorVar);
+
+    if (isOk(ratorTypeResult)) {
+        const ratorType = ratorTypeResult.value;
+
+        if (isProcTExp(ratorType) && isTypePredTExp(ratorType.returnTE) && isVarRef(test.rands[0])) {
+            const varName = test.rands[0].var;
+            const testExpType = typeofExp(test, tenv);
+            const thenEnv = makeExtendTEnv([varName], [ratorType.returnTE.predTE], tenv);
+            const thenExpType = typeofExp(then, thenEnv);
+            const previousVarType = applyTEnv(tenv, varName);
+
+            if (isOk(previousVarType)) {
+                const diffType = makeDiffTExp(previousVarType.value, ratorType.returnTE.predTE);
+                const altEnv = makeExtendTEnv([varName], [diffType], tenv);
+                const altExpType = typeofExp(alt, altEnv);
+
+                const checkTestType = bind(testExpType, testTE => checkCompatibleType(testTE, makeBoolTExp(), ifExp));
+                const combinedType = bind(thenExpType, thenTE => bind(altExpType, altTE => makeOk(makeUnion(thenTE, altTE))));
+
+                return bind(checkTestType, () => combinedType);
+            }
+        }
+    }
+
+    return typeofIfNormal(ifExp, tenv);
+};
+
 
 // Purpose: compute the type of a proc-exp
 // Typing rule:
